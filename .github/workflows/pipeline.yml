@@ -1,0 +1,64 @@
+name: tf-commands
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+          type: choice
+          description: Select Terraform Command
+          required: true
+          options:
+            - apply
+            - destroy
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.0.9
+
+    - name: Terraform Init
+      run: |
+          export AWS_ACCESS_KEY_ID=${{ secrets.DEV_AWS_ACCESS_KEY_ID }}
+          export AWS_SECRET_ACCESS_KEY=${{ secrets.DEV_AWS_SECRET_ACCESS_KEY }}         
+          terraform init          
+
+    - name: Check for Apply Plan
+      if: ${{ inputs.command == 'apply' }}
+      run: |
+          export AWS_ACCESS_KEY_ID=${{ secrets.DEV_AWS_ACCESS_KEY_ID }}
+          export AWS_SECRET_ACCESS_KEY=${{ secrets.DEV_AWS_SECRET_ACCESS_KEY }}          
+          terraform plan 
+          
+    - name: Check for Destroy Plan
+      if: ${{ inputs.command == 'destroy' }}
+      run: |
+          export AWS_ACCESS_KEY_ID=${{ secrets.DEV_AWS_ACCESS_KEY_ID }}
+          export AWS_SECRET_ACCESS_KEY=${{ secrets.DEV_AWS_SECRET_ACCESS_KEY }}          
+          terraform plan -destroy          
+          
+    - name: Manual Approval
+      uses: trstringer/manual-approval@v1
+      timeout-minutes: 60
+      with:
+         secret: ${{ secrets.TOKEN }}
+         approvers: prasanth624
+         minimum-approvals: 1
+         issue-title: "Please validate the terraform plan"
+         issue-body: "Please check the output of the terraform plan and approve or deny"
+         exclude-workflow-initiator-as-approver: false
+         additional-approved-words: ''
+         additional-denied-words: ''
+       
+    - name: Terraform apply
+      run: |
+          export AWS_ACCESS_KEY_ID=${{ secrets.DEV_AWS_ACCESS_KEY_ID }}
+          export AWS_SECRET_ACCESS_KEY=${{ secrets.DEV_AWS_SECRET_ACCESS_KEY }}          
+          terraform ${{ inputs.command }} -auto-approve
